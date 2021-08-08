@@ -36,19 +36,15 @@ void create_decrypt_vector(uint8_t* key, uint8_t* encrypted_data, uint64_t encry
     }
 
     // TODO: reimplement this properly instead of copy and pasting from decomp
-    int v9 = 0;
-    int64_t i;
-    int64_t v12;
-    for (i = -1; ; i = v12) {
-        if (v9 >= (int)(encrypted_size >> 3))
-            break;
-        v12 = ((uint64_t*)encrypted_data)[v9] ^ i;
-        ++v9;
+    uint64_t val = 0xFFFFFFFFFFFFFFFF;
+
+    for (int i = 0; i < encrypted_size >> 3; i++) {
+        val = ((uint64_t*)encrypted_data)[i] ^ val;
     }
 
     auto* key_qword = (uint64_t*)key;
     // another magic constant, this time from blk_stuff2
-    uint64_t seed = key_qword[1] ^ 0x567BA22BABB08098 ^ i ^ key_qword[0];
+    uint64_t seed = key_qword[1] ^ 0x567BA22BABB08098 ^ val ^ key_qword[0];
     //cout << "seed: 0x" << hex << seed << endl;
 
     auto mt_rand = std::mt19937_64(seed);
