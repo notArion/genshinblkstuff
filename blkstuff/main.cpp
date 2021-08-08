@@ -115,8 +115,8 @@ void mhy0_header_scramble2(uint8_t* a1)
 {
     // UnityPlayer:$152300
     // TODO: more cleanup
-    __int64 v1; // r10
-    unsigned __int8* v14; // rsi
+    int64_t v1; // r10
+    uint8_t* v14; // rsi
     uint8_t v20_0[16];
     uint8_t* v26; // [rsp+10h] [rbp-70h]
     uint8_t* v57; // [rsp+98h] [rbp+18h]
