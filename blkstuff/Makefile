@@ -1,7 +1,7 @@
 CXX=g++
 LD=g++
 LIBS=-llz4 -lc -lomp
-CXXFLAGS=-std=c++17 -fopenmp -Wall -Wextra
+CXXFLAGS=-O2 -std=c++17 -fopenmp -Wall -Wextra
 
 blkstuff: main.o util.o
 	$(LD) $(LIBS) $^ -o $@
