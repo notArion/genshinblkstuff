@@ -389,13 +389,3 @@ FodyWeavers.xsd
 # JetBrains Rider
 .idea/
 *.sln.iml
-
-# Vim temp files
-.*.swp
-.*.swo
-
-# Object files
-*.o
-
-# Linux binary
-blkstuff/blkstuff

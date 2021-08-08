@@ -1,6 +1,6 @@
-#include <stdio.h>
-#include <stdint.h>
-#include <string.h>
+#include <iostream>
+#include <cstdint>
+#include <cstring>
 
 #include <random>
 #include <filesystem>
@@ -9,6 +9,8 @@
 
 #include "util.h"
 #include "magic_constants.h"
+
+using std::cout, std::endl, std::hex, std::dec;
 
 // notes are from the genshin impact 1.5 dev build leak UnityEngine.dll (sha256 38399169552791bbfb7b3792dd3e91d3788067e29ffc2437f595060b051d2dd3)
 
@@ -29,7 +31,7 @@ uint8_t xor_combine(uint8_t* input) {
 
 void create_decrypt_vector(uint8_t* key, uint8_t* encrypted_data, uint64_t encrypted_size, uint8_t* output, uint64_t output_size) {
     if (output_size != 4096) {
-        printf("create_decrypt_vector does not support an output_size other than 4096\n");
+        cout << "create_decrypt_vector does not support an output_size other than 4096" << endl;
         exit(1);
     }
 
@@ -47,7 +49,7 @@ void create_decrypt_vector(uint8_t* key, uint8_t* encrypted_data, uint64_t encry
     auto* key_qword = (uint64_t*)key;
     // another magic constant, this time from blk_stuff2
     uint64_t seed = key_qword[1] ^ 0x567BA22BABB08098 ^ i ^ key_qword[0];
-    //printf("seed: 0x%llx\n", seed);
+    //cout << "seed: 0x" << hex << seed << endl;
 
     auto mt_rand = std::mt19937_64(seed);
     for (uint64_t i = 0; i < output_size >> 3; i++)
@@ -153,7 +155,7 @@ void mhy0_header_scramble2(uint8_t* a1)
 
 void mhy0_header_scramble(uint8_t* input, uint64_t a2, uint8_t* input2, uint64_t a4) {
     if (!((a2 == 0x39 && a4 == 0x1C) || (a2 == 0x21 && a4 == 8))) {
-        printf("unsupported parameters for mhy0_header_scramble\n");
+        cout << "unsupported parameters for mhy0_header_scramble" << endl;
         exit(1);
     }
 
@@ -185,16 +187,16 @@ void mhy0_extract(const char* out_format, int block_index, uint8_t* input, size_
     // loosely based on UnityPlayer:$1C64C0
     // TODO: bounds checks
     if (*(uint32_t*)input != 0x3079686D) { // mhy0
-        printf("decrypted data didn't start with mhy0, so decryption probably failed\n");
+        cout << "decrypted data didn't start with mhy0, so decryption probably failed" << endl;
         exit(1);
     }
 
     uint32_t size = *(uint32_t*)(input + 4);
-    //printf("first size 0x%x\n", size);
+    //cout << "first size 0x" << std::hex << size << endl;
 
     if (size > input_size) {
         // TODO: this is probably caused by the awful mhy0 searching approach i do instead of properly calculating offsets
-        printf("oh shit! attempted to get 0x%x bytes out of a 0x%llx input! skipping mhy0 %d...", size, input_size, block_index);
+        cout << "oh shit! attempted to get 0x" << hex << size << " bytes out of a 0x" << hex << input_size << " input! skipping mhy0 " << dec << block_index << endl;
         return;
     }
 
@@ -212,48 +214,48 @@ void mhy0_extract(const char* out_format, int block_index, uint8_t* input, size_
     // TODO: there is a different path for calculating this, so this might mess up on some inputs
     //uint32_t decomp_size = MAKE_UINT32(data[0x20 + 1], data[0x20 + 6], data[0x20 + 3], data[0x20 + 2]);
     uint32_t decomp_size = MAKE_UINT32(data, 0x20 + 1, 0x20 + 6, 0x20 + 3, 0x20 + 2);
-    //printf("decompressed size: 0x%x\n", decomp_size);
+    //cout << "decompressed size: 0x" << hex << decomp_size << endl;
     uint8_t* decomp_output = new uint8_t[decomp_size];
     auto lz4_res = LZ4_decompress_safe((const char*)(data + 0x27), (char*)decomp_output, size - 0x27, decomp_size);
     if (lz4_res < 0) {
-        printf("decompression failed: %d\n", lz4_res);
+        cout << "decompression failed: " << lz4_res << endl;
         exit(1);
     }
     delete[] data;
     //dump_to_file("mhy0_header.bin", decomp_output, decomp_size);
 
-    //printf("next data cmp size: 0x%x\n", MAKE_UINT32(decomp_output, 0x11F + 2, 0x11F + 4, 0x11F, 0x11F + 5));
-    //printf("next data decmp size: 0x%x\n", MAKE_UINT32(decomp_output, 0x112 + 1, 0x112 + 6, 0x112 + 3, 0x112 + 2));
-    //printf("unknown 1: 0x%x\n", MAKE_UINT32(decomp_output, 0x10C + 2, 0x10C + 4, 0x10C, 0x10C + 5));
+    //cout << "next data cmp size: 0x" << hex << MAKE_UINT32(decomp_output, 0x11F + 2, 0x11F + 4, 0x11F, 0x11F + 5) << endl;
+    //cout << "next data decmp size: 0x" << hex << MAKE_UINT32(decomp_output, 0x112 + 1, 0x112 + 6, 0x112 + 3, 0x112 + 2) << endl;
+    //cout << "unknown 1: 0x" << hex << MAKE_UINT32(decomp_output, 0x10C + 2, 0x10C + 4, 0x10C, 0x10C + 5) << endl;
     auto cab_count = MAKE_UINT32(decomp_output, 2, 4, 0, 5);
-    //printf("cab count: 0x%x\n", cab_count);
+    //cout << "cab count: 0x" << hex << cab_count << endl;
     //auto entry_count = MAKE_UINT32(decomp_output, 0x119 + 2, 0x119 + 4, 0x119, 0x119 + 5);
     auto entry_count = MAKE_UINT32(decomp_output, cab_count * 0x113 + 6 + 2, cab_count * 0x113 + 6 + 4, cab_count * 0x113 + 6, cab_count * 0x113 + 6 + 5);
-    //printf("entry count: 0x%x\n", entry_count);
+    //cout << "entry count: 0x" << hex << entry_count << endl;
     //dump_to_file("bruh.bin", decomp_output, decomp_size);
     //hexdump("asdf", decomp_output, decomp_size);
     //exit(1);
     //if (entry_count > 0x10000) {
         //hexdump("wtf???? something probably went wrong!", decomp_output, decomp_size);
-        //printf("0x%x\n", MAKE_UINT32(decomp_output, 2, 4, 0, 5));
+        //cout << "0x" << hex << MAKE_UINT32(decomp_output, 2, 4, 0, 5) << endl;
         //exit(1);
     //}
 
     uint8_t* entry_ptr = input + 0x8 + size;
     char filename[0x100] = {};
-    //printf("%s\n", out_format);
+    //cout << out_format << endl;
     snprintf(filename, sizeof(filename), out_format, block_index);
     auto* output = fopen(filename, "wb");
     if (!output) {
-        printf("failed to open %s\n", filename);
+        cout << "failed to open " << filename << endl;
         exit(1);
     }
     for (int i = 0; i < entry_count; i++) {
-        //printf("processing entry %d\n", i);
+        //cout << "processing entry " << i << endl;
         auto offset = i * 13 + cab_count * 0x113 + 6;
         auto entry_cmp_size = MAKE_UINT32(decomp_output, offset + 6 + 2, offset + 6 + 4, offset + 6, offset + 6 + 5);
         auto entry_decmp_size = MAKE_UINT32(decomp_output, offset + 0xC + 1, offset + 0xC + 6, offset + 0xC + 3, offset + 0xC + 2);
-        //printf("%x\n", entry_cmp_size);
+        //cout << hex << entry_cmp_size << endl;
         //hexdump("initial data", entry_ptr, entry_cmp_size);
         mhy0_header_scramble(entry_ptr, 0x21, entry_ptr + 4, 8);
         //hexdump("data after scramble", entry_ptr, entry_cmp_size);
@@ -261,7 +263,7 @@ void mhy0_extract(const char* out_format, int block_index, uint8_t* input, size_
         auto* entry_decmp = new uint8_t[entry_decmp_size];
         auto lz4_res = LZ4_decompress_safe((const char*)(entry_ptr + 0xC), (char*)entry_decmp, entry_cmp_size - 0xC, entry_decmp_size);
         if (lz4_res < 0) {
-            printf("decompression failed: %d\n", lz4_res);
+            cout << "decompression failed: " << lz4_res << endl;
             exit(1);
         }
         //dump_to_file(filename, entry_decmp, entry_decmp_size);
@@ -279,7 +281,7 @@ int extract_blk(char* in_filename, const char* out_format) {
     //auto* blk_file = fopen("D:\\Games\\Genshin Impact\\Genshin Impact game\\GenshinImpact_Data\\StreamingAssets\\VideoAssets\\26236578.blk", "rb");
     auto* blk_file = fopen(in_filename, "rb");
     if (!blk_file) {
-        printf("failed to open blk\n");
+        cout << "failed to open blk" << endl;
         return 1;
     }
 
@@ -287,7 +289,7 @@ int extract_blk(char* in_filename, const char* out_format) {
         uint32_t magic = 0;
         fread(&magic, 4, 1, blk_file);
         if (magic != 0x6B6C62) { // blk\x00
-            printf("bad file magic");
+            cout << "bad file magic" << endl;
             return 1;
         }
     }
@@ -296,7 +298,7 @@ int extract_blk(char* in_filename, const char* out_format) {
         uint32_t unk1 = 0;
         fread(&unk1, 4, 1, blk_file);
         if (unk1 != 0x10) {
-            printf("unk1 is not 0x10");
+            cout << "unk1 is not 0x10" << endl;
             return 1;
         }
     }
@@ -316,7 +318,7 @@ int extract_blk(char* in_filename, const char* out_format) {
 
     uint16_t block_size = 0;
     fread(&block_size, sizeof(block_size), 1, blk_file);
-    //printf("0x%x\n", block_size);
+    //cout << "0x" << hex << block_size << endl;
 
     fseek(blk_file, 0, SEEK_END);
     size_t size = ftell(blk_file);
@@ -351,7 +353,7 @@ int extract_blk(char* in_filename, const char* out_format) {
         if (res) {
             auto loc = (uint8_t*)res - data;
             mhy0_locs.push_back(loc);
-            //printf("found mhy0 at 0x%llx\n", loc);
+            //cout << "found mhy0 at 0x" << hex << loc << endl;
             mhy0_extract(out_format, i, data + loc, size);
             last_loc = loc + 4;
         } else {
@@ -362,46 +364,49 @@ int extract_blk(char* in_filename, const char* out_format) {
     //mhy0_extract(data, size);
 
     delete[] data;
+
+    return 0;
 }
 
 int main(int argc, char** argv) {
     if (argc < 2) {
-        printf("you need an input file\n");
+        cout << "you need an input file" << endl;
         return 1;
     }
     if (!strcmp(argv[1], "batch")) {
         if (argc < 4) {
-            printf("you need input and output folders for batch mode\n");
+            cout << "you need input and output folders for batch mode" << endl;
             return 1;
         }
 
         auto base_path = std::filesystem::path(argv[2]);
         std::vector<std::filesystem::path> blk_paths;
-        printf("scanning for blks\n");
+        cout << "scanning for blks" << endl;
         try {
             for (auto& p : std::filesystem::recursive_directory_iterator(base_path)) {
                 if (p.path().extension() == ".blk")
-                    //printf("%ws\n", p.path().lexically_relative(base_path).c_str());
+                    //cout << p.path().lexically_relative(base_path) << endl;
                     blk_paths.push_back(p.path().lexically_relative(base_path));
             }
         } catch (const std::exception& e) {
-            printf("failed to search for blk files with error: %s\n", e.what());
+            cout << "failed to search for blk files with error: " << e.what() << endl;
             return 1;
         }
-        printf("found %llu blks to extract\n", blk_paths.size());
+        cout << "found " << blk_paths.size() << " blks to extract" << endl;
 
         auto output_base = std::filesystem::path(argv[3]);
         for (auto& p : blk_paths) {
-            printf("processing %ws...", p.c_str());
+            cout << "processing " << p << "... ";
 
             auto input_path = base_path / p;
             auto output_path = (output_base / p).replace_extension(".%d.bin");
             auto output_dir = std::filesystem::path(output_path).remove_filename();
-            //printf("%ws\n", output_path.c_str());
+            //cout << output_path << endl;
             std::filesystem::create_directories(output_dir);
-            extract_blk((char*)input_path.generic_string().c_str(), output_path.generic_string().c_str());
+            int ret = extract_blk((char*)input_path.generic_string().c_str(), output_path.generic_string().c_str());
 
-            printf("ok\n");
+            if (!ret)
+              cout << "ok" << endl;
         }
     } else {
         extract_blk(argv[1], "output%d.bin");
