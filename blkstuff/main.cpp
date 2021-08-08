@@ -395,7 +395,10 @@ int main(int argc, char** argv) {
         cout << "found " << blk_paths.size() << " blks to extract" << endl;
 
         auto output_base = std::filesystem::path(argv[3]);
-        for (auto& p : blk_paths) {
+        //for (auto& p : blk_paths) {
+        #pragma omp parallel for
+        for (int i = 0; i < blk_paths.size(); i++) {
+            auto p = blk_paths[i];
             cout << "processing " << p << "... ";
 
             auto input_path = base_path / p;
