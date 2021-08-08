@@ -113,73 +113,75 @@ void key_scramble2(uint8_t* key) {
         key[i] = xor_combine(&expanded_key[16 * i]);
 }
 
-void mhy0_header_scramble2(uint8_t* a1)
+void mhy0_header_scramble2(uint8_t* input)
 {
     // UnityPlayer:$152300
     // TODO: more cleanup
-    int64_t v1; // r10
-    uint8_t* v14; // rsi
-    uint8_t v20_0[16];
-    uint8_t* v26; // [rsp+10h] [rbp-70h]
-    uint8_t* v57; // [rsp+98h] [rbp+18h]
+    uint8_t* ptr; // rsi
+    uint8_t tmp[16];
 
-    v26 = a1;
     uint8_t mhy0_index_scramble[] = {
         0x0B,0x02,0x08,0x0C,0x01,0x05,0x00,0x0F,0x06,0x07,0x09,0x03,0x0D,0x04,0x0E,0x0A,
         0x04,0x05,0x07,0x0A,0x02,0x0F,0x0B,0x08,0x0E,0x0D,0x09,0x06,0x0C,0x03,0x00,0x01,
         0x08,0x00,0x0C,0x06,0x04,0x0B,0x07,0x09,0x05,0x03,0x0F,0x01,0x0D,0x0A,0x02,0x0E,
     };
-    uint8_t v20_1[] = {
+
+    uint8_t smol_key[] = {
         0x48, 0x14, 0x36, 0xED, 0x8E, 0x44, 0x5B, 0xB6
     };
+
     uint8_t v25[] = {
         0xA7, 0x99, 0x66, 0x50, 0xB9, 0x2D, 0xF0, 0x78
     };
-    for (int v17 = 0; v17 < 3; v17++)
+
+    for (int k = 0; k < 3; k++)
     {
         for (int i = 0; i < 16; ++i)
-            v20_0[i] = v26[mhy0_index_scramble[32 + -16 * v17 + i]];
-        memcpy(v26, v20_0, 16);
+            tmp[i] = input[mhy0_index_scramble[(2 - k)*16 + i]];
+
+        memcpy(input, tmp, 16);
+
         for (int j = 0; j < 16; ++j)
         {
-            v57 = v20_1;
-            v14 = &v26[j];
-            v1 = j % 8;
-            if (*v14 == 0 || !v25[v1])
-                *v14 = key_scramble_table1[j % 4 * 256] ^ v57[j % 8];
-            else
-                *v14 = v57[v1] ^ key_scramble_table1[j % 4 * 256 | mhy0_table1[(mhy0_table2[v25[v1]] + mhy0_table2[*v14]) % 255]];
+            ptr = &input[j];
+            int idx = j % 8;
+
+            *ptr = smol_key[idx] ^ key_scramble_table1[j % 4 * 256 | gf256_mul(v25[idx], *ptr)];
         }
     }
 }
 
-void mhy0_header_scramble(uint8_t* input, uint64_t a2, uint8_t* input2, uint64_t a4) {
-    if (!((a2 == 0x39 && a4 == 0x1C) || (a2 == 0x21 && a4 == 8))) {
+void mhy0_header_scramble(uint8_t* input, uint64_t limit, uint8_t* input2, uint64_t chunk_size) {
+    if (!((limit == 0x39 && chunk_size == 0x1C) || (limit == 0x21 && chunk_size == 8))) {
         cout << "unsupported parameters for mhy0_header_scramble" << endl;
         exit(1);
     }
 
     // UnityPlayer:$151090
     // TODO: reimplement this properly instead of copy and pasting from decomp
-    int v10 = (a4 + 15) & 0xFFFFFFF0;
-    for (int i = 0; i < v10; i += 16)
+    int rounded_size = (chunk_size + 15) & 0xFFFFFFF0;
+
+    for (int i = 0; i < rounded_size; i += 16)
         mhy0_header_scramble2(&input[i + 4]);
+
     for (int j = 0; j < 4; j++)
         input[j] ^= input2[j];
-    uint64_t v8 = (uint64_t)v10 + 4;
-    int v13 = 0;
-    while (v8 < a2 && !v13)
+
+    uint64_t total_rounded_size = (uint64_t)rounded_size + 4;
+
+    bool finished = false;
+    while (total_rounded_size < limit && !finished)
     {
-        for (int k = 0; k < a4; ++k)
+        for (int k = 0; k < chunk_size; ++k)
         {
-            input[k + v8] ^= input2[k];
-            if (k + v8 >= a2 - 1)
+            input[k + total_rounded_size] ^= input2[k];
+            if (k + total_rounded_size >= limit - 1)
             {
-                v13 = 1;
+                finished = true;
                 break;
             }
         }
-        v8 += a4;
+        total_rounded_size += chunk_size;
     }
 }
 
