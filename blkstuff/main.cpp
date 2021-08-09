@@ -185,7 +185,7 @@ void mhy0_header_scramble2(uint8_t* input)
 
             int idx = j % 8;
 
-            tmp[j] = smol_key[idx] ^ key_scramble_table1[j % 4 * 256 | gf256_mul(v25[idx], input[i])];
+            tmp[j] = smol_key[idx] ^ key_scramble_table1[((j & 3) << 8) | gf256_mul(v25[idx], input[i])];
         }
         memcpy(input, tmp, 16);
     }
