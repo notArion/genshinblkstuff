@@ -113,8 +113,6 @@ void key_scramble2(uint8_t* key) {
 void mhy0_header_scramble2(uint8_t* input)
 {
     // UnityPlayer:$152300
-    // TODO: more cleanup
-    uint8_t* ptr; // rsi
     uint8_t tmp[16];
 
     uint8_t mhy0_index_scramble[] = {
@@ -133,18 +131,15 @@ void mhy0_header_scramble2(uint8_t* input)
 
     for (int k = 0; k < 3; k++)
     {
-        for (int i = 0; i < 16; ++i)
-            tmp[i] = input[mhy0_index_scramble[(2 - k)*16 + i]];
-
-        memcpy(input, tmp, 16);
-
         for (int j = 0; j < 16; ++j)
         {
-            ptr = &input[j];
+            int i = mhy0_index_scramble[(2 - k)*16 + j];
+
             int idx = j % 8;
 
-            *ptr = smol_key[idx] ^ key_scramble_table1[j % 4 * 256 | gf256_mul(v25[idx], *ptr)];
+            tmp[j] = smol_key[idx] ^ key_scramble_table1[j % 4 * 256 | gf256_mul(v25[idx], input[i])];
         }
+        memcpy(input, tmp, 16);
     }
 }
 
