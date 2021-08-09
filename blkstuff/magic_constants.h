@@ -692,3 +692,14 @@ static inline uint8_t gf256_mul(uint8_t a, uint8_t b)
 
   return gf256_exp[(gf256_log[a] + gf256_log[b]) % 255];
 }
+
+#pragma pack(1)
+struct blk_header
+{
+    uint32_t magic;    // "blk\0"
+    uint32_t version;  // 0x10
+    uint8_t  key1[16]; // Decryption key
+    uint8_t  key2[16]; // Some other key
+    uint16_t block_size;
+};
+#pragma pack()

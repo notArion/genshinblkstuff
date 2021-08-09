@@ -318,68 +318,56 @@ void mhy0_extract(const char* out_format, int block_index, uint8_t* input, size_
 }
 
 int extract_blk(char* in_filename, const char* out_format) {
-    //auto* blk_file = fopen("D:\\genshinimpactre\\1.5-dev\\YuanShen_Data\\StreamingAssets\\20527480.blk", "rb");
-    //auto* blk_file = fopen("D:\\Games\\Genshin Impact\\Genshin Impact game\\GenshinImpact_Data\\StreamingAssets\\VideoAssets\\26236578.blk", "rb");
     auto* blk_file = fopen(in_filename, "rb");
+
     if (!blk_file) {
         cout << "failed to open blk" << endl;
         return 1;
     }
 
-    {
-        uint32_t magic = 0;
-        fread(&magic, 4, 1, blk_file);
-        if (magic != 0x6B6C62) { // blk\x00
-            cout << "bad file magic" << endl;
-            return 1;
-        }
+    blk_header hdr;
+    bool fail = false;
+
+    if (fread(&hdr, sizeof(blk_header), 1, blk_file) < 1) {
+        cout << "Failed to read BLK header!" << endl;
+        fail = true;
     }
 
-    {
-        uint32_t unk1 = 0;
-        fread(&unk1, 4, 1, blk_file);
-        if (unk1 != 0x10) {
-            cout << "unk1 is not 0x10" << endl;
-            return 1;
-        }
+    if (!fail && hdr.magic != 0x6B6C62) { // blk\x00
+        cout << "bad file magic" << endl;
+        fail = true;
     }
 
-    uint8_t key[16] = {};
-    fread(key, sizeof(key), 1, blk_file);
-    fseek(blk_file, 16, SEEK_CUR); // skip the useless half of the key
+    if (!fail && hdr.version != 0x10) {
+        cout << "version is not 0x10" << endl;
+        fail = true;
+    }
+
+    if (fail) {
+        fclose(blk_file);
+        return 1;
+    }
+
     //hexdump("encrypted blk key:", key, sizeof(key));
-    key_scramble1(key);
-    key_scramble2(key);
+    key_scramble1(hdr.key1);
+    key_scramble2(hdr.key1);
     // this should also go into magic_constants.h, but it's small
     // this value goes through a lot of computation to get generated, but is always the same
     uint8_t hard_key[] = { 0xE3, 0xFC, 0x2D, 0x26, 0x9C, 0xC5, 0xA2, 0xEC, 0xD3, 0xF8, 0xC6, 0xD3, 0x77, 0xC2, 0x49, 0xB9 };
     for (int i = 0; i < 16; i++)
-        key[i] ^= hard_key[i];
+        hdr.key1[i] ^= hard_key[i];
     //hexdump("decrypted blk key:", key, sizeof(key));
 
-    uint16_t block_size = 0;
-    fread(&block_size, sizeof(block_size), 1, blk_file);
-    //cout << "0x" << hex << block_size << endl;
-
     fseek(blk_file, 0, SEEK_END);
-    size_t size = ftell(blk_file);
-    fseek(blk_file, 0x2A, SEEK_SET); // skip xorpad size
+    size_t size = ftell(blk_file) - sizeof(blk_header);
+    fseek(blk_file, sizeof(blk_header), SEEK_SET); // skip header 
 
     auto* data = new uint8_t[size];
     fread(data, size, 1, blk_file);
     fclose(blk_file);
 
-    /*
     uint8_t xorpad[4096] = {};
-    create_decrypt_vector(key, data, size, xorpad, sizeof(xorpad));
-
-    auto len = std::min((uint64_t)size, sizeof(xorpad));
-    for (int i = 0; i < len; i++)
-        data[i] ^= xorpad[i];
-    */
-
-    uint8_t xorpad[4096] = {};
-    create_decrypt_vector(key, data, std::min((uint64_t)block_size, sizeof(xorpad)), xorpad, sizeof(xorpad));
+    create_decrypt_vector(hdr.key1, data, std::min((uint64_t)hdr.block_size, sizeof(xorpad)), xorpad, sizeof(xorpad));
     for (int i = 0; i < size; i++)
         data[i] ^= xorpad[i & 0xFFF];
     //dump_to_file("decrypted.bin", data, size);
@@ -401,8 +389,6 @@ int extract_blk(char* in_filename, const char* out_format) {
             break;
         }
     }
-
-    //mhy0_extract(data, size);
 
     delete[] data;
 
