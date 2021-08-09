@@ -64,6 +64,7 @@ void key_scramble2(uint8_t* key) {
         expanded_key[i] ^= blk_stuff1_p1[i] ^ stack_stuff[i];
 
     // should probably be in magic_constants.h, but it's very small
+    // that's a lookup table for row shifts in AES, motherfucker
     const uint8_t index_scramble[16] = {
         0,  13, 10, 7,
         4,  1,  14, 11,
