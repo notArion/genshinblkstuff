@@ -150,7 +150,6 @@ void mhy0_header_scramble(uint8_t* input, uint64_t limit, uint8_t* input2, uint6
     }
 
     // UnityPlayer:$151090
-    // TODO: reimplement this properly instead of copy and pasting from decomp
     int rounded_size = (chunk_size + 15) & 0xFFFFFFF0;
 
     for (int i = 0; i < rounded_size; i += 16)
