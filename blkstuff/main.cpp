@@ -20,15 +20,6 @@ void key_scramble1(uint8_t* key) {
         key[i] = key_scramble_table1[((i & 3) << 8) | key[i]];
 }
 
-uint8_t xor_combine(uint8_t* input) {
-    // xors an array of 16 bytes into a single byte
-    //hexdump(input, 0x10);
-    uint8_t ret = 0;
-    for (int i = 0; i < 16; i++)
-        ret ^= input[i];
-    return ret;
-}
-
 void create_decrypt_vector(uint8_t* key, uint8_t* encrypted_data, uint64_t encrypted_size, uint8_t* output, uint64_t output_size) {
     if (output_size != 4096) {
         cout << "create_decrypt_vector does not support an output_size other than 4096" << endl;
@@ -52,13 +43,8 @@ void create_decrypt_vector(uint8_t* key, uint8_t* encrypted_data, uint64_t encry
         ((uint64_t*)output)[i] = mt_rand();
 }
 
-void add_round_key(uint8_t* data, const uint8_t* round_keys, int round)
-{
-    for (int i = 0; i < 16; i++)
-        data[i] ^= round_keys[round * 16 + i];
-}
-
-void try_expand_round_keys(uint8_t* round_keys, const uint8_t* seed)
+#if 0
+void aes_expand_round_keys(uint8_t* round_keys, const uint8_t* seed)
 {
     int N = 4;
 
@@ -101,7 +87,6 @@ void try_expand_round_keys(uint8_t* round_keys, const uint8_t* seed)
     0x17, 0x2b, 0x04, 0x7e, 0xba, 0x77, 0xd6, 0x26, 0xe1, 0x69, 0x14, 0x63, 0x55, 0x21, 0x0c, 0x7d};
 
     auto rot_word = [](uint32_t word) {
-        //return (word << 8) | ((word >> 24) & 0x000000FF);
         return (word >> 8) | ((word << 24) & 0xFF000000);
     };
 
@@ -133,23 +118,16 @@ void try_expand_round_keys(uint8_t* round_keys, const uint8_t* seed)
         hexdump("Derived round key: ", round_keys + round*16, 16);
     }
 }
+#endif
 
 void kinda_expand_round_keys(uint8_t* round_keys)
 {
-    // First round key
-    int round = 0;
-
-    for (int i = 0; i < 16; i++)
-        for (int j = 0; j < 16; j++)
-        {
-            uint64_t idx = (round << 8) + (i*16) + j;
-            round_keys[round * 16 + i] ^= blk_stuff1_p1[idx] ^ stack_stuff[idx];
-        }
-
-    // Round keys 1-9
-    for (round = 1; round < 10; round++)
+    // There're eleven rounds...
+    for (int round = 0; round <= 10; round++)
     {
+        // ... and each key has 16 bytes = 128 bits ...
         for (int i = 0; i < 16; i++)
+            // ... and each byte is a sum modulo 2 of 16 bytes of data
             for (int j = 0; j < 16; j++)
             {
                 uint64_t idx = (round << 8) + (i*16) + j;
@@ -157,20 +135,12 @@ void kinda_expand_round_keys(uint8_t* round_keys)
             }
     }
 
-    // Round key 10
-    round = 10;
-
-    for (int i = 0; i < 16; i++)
-        for (int j = 0; j < 16; j++)
-        {
-            uint64_t idx = (round << 8) + (i*16) + j;
-            round_keys[round * 16 + i] ^= blk_stuff1_p7[i * 16 + j] ^ stack_stuff[idx]; // Note the different index for blk_stuff_p7
-        }
-
+    #if 0
     for (int round = 0; round <= 10; round++)
     {
         hexdump("Round key: ", round_keys + round*16, 16);
     }
+    #endif
 }
 
 // This function is not exported, so hackaround it
@@ -186,116 +156,6 @@ void key_scramble2(uint8_t* key) {
     oqs_aes128_enc_c(key, round_keys, chip);
 
     memcpy(key, chip, 16);
-}
-
-// Rewritten
-void _key_scramble2(uint8_t* key) {
-    uint8_t round_keys[11*16] = {0};
-
-    kinda_expand_round_keys(round_keys);
-
-    const uint8_t index_scramble[16] = {
-        0,  13, 10, 7,
-        4,  1,  14, 11,
-        8,  5,  2,  15,
-        12, 9,  6,  3
-    };
-
-    hexdump("Initial data: ", key, 16);
-    
-    add_round_key(key, round_keys, 0);
-
-    for (uint64_t round = 1; round < 10; round++) {
-
-        // Here sub_bytes, shift_rows and mix_columns are fused together
-        uint32_t scratch[4] = {};
-        for (uint64_t j = 0; j < 4; j++) {
-            uint8_t temp = 0;
-
-            temp = key[index_scramble[4 * j + 0]];
-            scratch[j] ^= ((uint32_t*)blk_stuff1_p2)[temp];
-
-            temp = key[index_scramble[4 * j + 1]];
-            scratch[j] ^= ((uint32_t*)blk_stuff1_p3)[temp];
-
-            temp = key[index_scramble[4 * j + 2]];
-            scratch[j] ^= ((uint32_t*)blk_stuff1_p4)[temp];
-
-            temp = key[index_scramble[4 * j + 3]];
-            scratch[j] ^= ((uint32_t*)blk_stuff1_p5)[temp];
-        }
-        memcpy(key, scratch, 16);
-        add_round_key(key, round_keys, round);
-    }
-    
-    uint8_t scratch[16] = {};
-    // Last round don't have mix_columns step, only sub_bytes and shift_rows
-    for (int i = 0; i < 16; i++) {
-        uint8_t t = key[index_scramble[i]];
-        scratch[i] = blk_stuff1_p6[t] ^ ~t;
-    }
-    memcpy(key, scratch, 16);
-    add_round_key(key, round_keys, 10);
-
-    hexdump("Final data: ", key, 16);
-}
-
-void __key_scramble2(uint8_t* key) {
-    // UnityPlayer:$26EA90
-    uint8_t expanded_key[256] = {};
-
-    // usually this table gets xor'd against random data that's unique for every run
-    // obviously if the random data actually mattered, it would make decryption impossible
-    for (int i = 0; i < 16; i++)
-        expanded_key[i * 16] = key[i];
-    for (int i = 0; i < sizeof(expanded_key); i++)
-        expanded_key[i] ^= blk_stuff1_p1[i] ^ stack_stuff[i];
-
-    // should probably be in magic_constants.h, but it's very small
-    // that's a lookup table for row shifts in AES, motherfucker
-    const uint8_t index_scramble[16] = {
-        0,  13, 10, 7,
-        4,  1,  14, 11,
-        8,  5,  2,  15,
-        12, 9,  6,  3
-    };
-    for (uint64_t i = 1; i < 10; i++) {
-        uint32_t scratch[4] = {};
-        for (uint64_t j = 0; j < 4; j++) {
-            uint8_t temp = 0;
-            temp = xor_combine(&expanded_key[16 * index_scramble[4 * j]]);
-            scratch[j] ^= ((uint32_t*)blk_stuff1_p2)[temp];
-            temp = xor_combine(&expanded_key[16 * index_scramble[4 * j + 1]]);
-            scratch[j] ^= ((uint32_t*)blk_stuff1_p3)[temp];
-            temp = xor_combine(&expanded_key[16 * index_scramble[4 * j + 2]]);
-            scratch[j] ^= ((uint32_t*)blk_stuff1_p4)[temp];
-            temp = xor_combine(&expanded_key[16 * index_scramble[4 * j + 3]]);
-            scratch[j] ^= ((uint32_t*)blk_stuff1_p5)[temp];
-        }
-        // also usually xor'd
-        memset(expanded_key, 0, sizeof(expanded_key));
-        for (uint64_t j = 0; j < 16; j++)
-            expanded_key[j * 16] = ((uint8_t*)scratch)[j];
-        for (uint64_t j = 0; j < 256; j++) {
-            uint64_t v10 = j + (i << 8);
-            expanded_key[j] ^= blk_stuff1_p1[v10] ^ stack_stuff[v10];
-        }
-    }
-    
-    uint8_t scratch[16] = {};
-    for (int i = 0; i < 16; i++) {
-        uint8_t t = xor_combine(&expanded_key[16 * index_scramble[i]]);
-        scratch[i] = blk_stuff1_p6[t] ^ ~t;
-    }
-    // yes, also usually xor'd
-    memset(expanded_key, 0, sizeof(expanded_key));
-    for (uint64_t i = 0; i < 16; i++)
-        expanded_key[i * 16] = scratch[i];
-    for (int i = 0; i < sizeof(expanded_key); i++)
-        expanded_key[i] ^= blk_stuff1_p7[i] ^ stack_stuff[i + 0xA00];
-
-    for (int i = 0; i < 16; i++)
-        key[i] = xor_combine(&expanded_key[16 * i]);
 }
 
 void mhy0_header_scramble2(uint8_t* input)
@@ -551,23 +411,10 @@ int extract_blk(char* in_filename, const char* out_format) {
 
 int main(int argc, char** argv) {
     #if 0
-    uint32_t box[256] = {0};
-    for (int i = 0; i < 256; i++) {
-        box[i] = 
-          ((uint32_t*)blk_stuff1_p2)[i] ^
-          ((uint32_t*)blk_stuff1_p3)[i] ^
-          ((uint32_t*)blk_stuff1_p4)[i] ^
-          ((uint32_t*)blk_stuff1_p5)[i] ;
-    }
-    hexdump("Box: ", (uint8_t*)box, 256*4);
-    exit(0);
-    #endif
-
-    #if 0
     uint8_t round_keys[11*16] = {0};
     uint8_t seed[] = {0x54, 0x2f, 0xed, 0x67, 0x5d, 0xdd, 0x11, 0x2e, 0xb7, 0x40, 0x13, 0xe3, 0x29, 0xab, 0x6d, 0x28};
 
-    try_expand_round_keys(round_keys, seed);
+    aes_expand_round_keys(round_keys, seed);
     memset(round_keys, 0, 11*16);
     kinda_expand_round_keys(round_keys);
     exit(0);
